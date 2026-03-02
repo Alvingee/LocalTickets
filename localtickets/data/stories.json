@@ -1,0 +1,20 @@
+[
+  {
+    "id": "story-build-api",
+    "epicId": "epic-setup-localtickets",
+    "title": "Implement MVP API endpoints",
+    "notes": "Cover epics and stories CRUD-lite routes.",
+    "status": "doing",
+    "createdAt": "2026-01-01T10:05:00.000Z",
+    "updatedAt": "2026-01-01T10:05:00.000Z"
+  },
+  {
+    "id": "story-create-ui",
+    "epicId": "epic-setup-localtickets",
+    "title": "Build epic and story views",
+    "notes": "Keep interactions keyboard-friendly and minimal.",
+    "status": "todo",
+    "createdAt": "2026-01-01T10:10:00.000Z",
+    "updatedAt": "2026-01-01T10:10:00.000Z"
+  }
+]
