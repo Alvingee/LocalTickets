@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.resolve(__dirname, '../data');
-const epicsFile = path.join(dataDir, 'epics.json');
 const storiesFile = path.join(dataDir, 'stories.json');
 
 async function ensureFile(filePath) {
@@ -33,44 +32,8 @@ async function writeJsonAtomic(filePath, data) {
 
 const now = () => new Date().toISOString();
 
-export async function listEpics() {
-  return readJson(epicsFile);
-}
-
-export async function createEpic(input) {
-  const epics = await readJson(epicsFile);
-  const timestamp = now();
-  const epic = {
-    id: randomUUID(),
-    title: input.title,
-    description: input.description ?? '',
-    status: input.status ?? 'active',
-    createdAt: timestamp,
-    updatedAt: timestamp
-  };
-  epics.push(epic);
-  await writeJsonAtomic(epicsFile, epics);
-  return epic;
-}
-
-export async function updateEpic(id, patch) {
-  const epics = await readJson(epicsFile);
-  const index = epics.findIndex((epic) => epic.id === id);
-  if (index === -1) {
-    return null;
-  }
-  epics[index] = {
-    ...epics[index],
-    ...patch,
-    updatedAt: now()
-  };
-  await writeJsonAtomic(epicsFile, epics);
-  return epics[index];
-}
-
-export async function listStoriesByEpic(epicId) {
-  const stories = await readJson(storiesFile);
-  return stories.filter((story) => story.epicId === epicId);
+export async function listStories() {
+  return readJson(storiesFile);
 }
 
 export async function createStory(input) {
@@ -78,7 +41,6 @@ export async function createStory(input) {
   const timestamp = now();
   const story = {
     id: randomUUID(),
-    epicId: input.epicId,
     title: input.title,
     notes: input.notes ?? '',
     status: input.status ?? 'todo',
@@ -106,6 +68,5 @@ export async function updateStory(id, patch) {
 }
 
 export async function initializeDataFiles() {
-  await ensureFile(epicsFile);
   await ensureFile(storiesFile);
 }
