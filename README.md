@@ -57,14 +57,58 @@ localtickets/
 - Easy backups, diffs, and branch-based planning.
 - No external DB dependency.
 
-## Suggested Tech Stack
+## Decided Tech Stack
 
-Keep the stack intentionally small:
-- **Frontend:** React + Vite (or plain HTML/JS if you want ultra-minimal).
-- **Backend:** tiny Node/Express server for file I/O.
-- **Storage:** JSON files in `data/`.
+This project uses a deliberately small JavaScript stack:
+- **Runtime:** Node.js 20+
+- **Frontend:** React + Vite
+- **Backend:** Express (same Node project)
+- **Storage:** JSON files in `data/`
 
-If you want even less moving parts, use a single Node server that serves static UI and API endpoints.
+This keeps setup simple and supports the local-first goal (no external database).
+
+## Run Locally
+
+> Current repository status: this repo currently contains the product specification only. Use the commands below once the `app/` scaffold is added.
+
+1. Install prerequisites:
+   - Node.js 20+
+   - npm 10+
+2. Clone and enter the repo:
+
+```bash
+git clone <your-repo-url> LocalTickets
+cd LocalTickets
+```
+
+3. Install dependencies (from the app package directory):
+
+```bash
+cd app
+npm install
+```
+
+4. Start development server:
+
+```bash
+npm run dev
+```
+
+5. Open the URL shown in terminal (typically `http://localhost:5173`).
+
+6. Data files expected by the app live under:
+
+```txt
+../data/epics.json
+../data/stories.json
+```
+
+### Optional production-like run
+
+```bash
+npm run build
+npm run preview
+```
 
 ## API Sketch (minimal)
 
