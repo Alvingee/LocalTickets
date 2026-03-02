@@ -1,0 +1,30 @@
+{
+  "name": "localtickets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "vite --config app/vite.config.js",
+    "dev:server": "nodemon app/server.js",
+    "build": "vite build --config app/vite.config.js",
+    "preview": "vite preview --config app/vite.config.js",
+    "start": "node app/server.js",
+    "check": "npm run build"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "nodemon": "^3.1.4",
+    "vite": "^5.4.2"
+  }
+}

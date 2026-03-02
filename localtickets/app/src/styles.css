@@ -1,0 +1,103 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #1f2937;
+  background: #f3f4f6;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.panel {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.stack {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+button {
+  cursor: pointer;
+  background: #eef2ff;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.card.selected {
+  border-color: #6366f1;
+}
+
+.titleBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #111827;
+  font-weight: 700;
+}
+
+.chip {
+  text-transform: capitalize;
+}
+
+.chip.active {
+  background: #c7d2fe;
+}
+
+.error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
