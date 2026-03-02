@@ -43,16 +43,17 @@ Use plain JSON files so data is easy to read and merge in git.
 
 ```txt
 localtickets/
-  app/                     # web UI + local server
-  data/
-    epics.json             # array of epics
-    stories.json           # array of stories
-  scripts/
-    dev.sh                 # run locally
-    build.sh               # optional static build
+  localtickets/            # the ONE folder users copy into their own repo
+    app/                   # web UI + local server
+    data/
+      epics.json           # array of epics
+      stories.json         # array of stories
+    package.json
+  setup-localtickets.sh    # the ONE setup/launch helper users copy
 ```
 
 ### Why this structure?
+- `localtickets/` is self-contained and portable.
 - `data/` is version-controlled and human-editable.
 - Easy backups, diffs, and branch-based planning.
 - No external DB dependency.
@@ -65,11 +66,73 @@ This project uses a deliberately small JavaScript stack:
 - **Backend:** Express (same Node project)
 - **Storage:** JSON files in `data/`
 
-This keeps setup simple and supports the local-first goal (no external database).
+This keeps setup simple and supports the local-first goal (no external database and never online-hosted for MVP).
+
+## How a New User Should Use LocalTickets
+
+The key idea is: **LocalTickets is always local-first and offline-capable**, not a hosted service. Tickets live in your repo so they appear directly in git history.
+
+### Simple install model (copy one folder + one file)
+
+A user should only need to copy:
+1. `localtickets/` folder (contains app + data + package metadata).
+2. `setup-localtickets.sh` (single helper script).
+
+After copying those into their project root, they run one command:
+
+```bash
+./setup-localtickets.sh
+```
+
+The script should do the easy path automatically:
+- verify Node/npm versions,
+- run `npm install` inside `localtickets/` if needed,
+- create `localtickets/data/*.json` if missing,
+- launch the app and print the browser URL.
+
+### Recommended user flow (when app is finished)
+
+1. Create or clone your own project repo.
+2. Copy in `localtickets/` + `setup-localtickets.sh`.
+3. Run `./setup-localtickets.sh`.
+4. Track epics/stories in browser.
+5. Commit code + ticket JSON changes together.
+
+That means “run locally” is the **actual product workflow**, not a developer-only setup trick.
+
+### Why local-first is the default plan
+
+- No account/signup friction.
+- No hosted database to configure.
+- No cloud dependency (works as an always-local solution).
+- Tickets naturally versioned with your code.
+- Branching works for planning (feature branches include ticket state).
+
+## Release and Onboarding Plan
+
+To make onboarding extremely easy, package LocalTickets as a portable drop-in bundle.
+
+### Practical rollout steps
+
+1. Ship `localtickets/` as a self-contained folder.
+2. Ship `setup-localtickets.sh` at repo root as the only user-facing command entry point.
+3. Make `setup-localtickets.sh` idempotent (safe to rerun anytime).
+4. Add seed JSON data so first launch has example content.
+5. Keep this repo as source-of-truth and publish tagged releases users can download and copy from.
 
 ## Run Locally
 
-> Current repository status: this repo currently contains the product specification only. Use the commands below once the `app/` scaffold is added.
+> Current repository status: this repo currently contains the product specification only. Use the commands below once the scaffold is added.
+
+### End-user run path (target experience)
+
+```bash
+./setup-localtickets.sh
+```
+
+That command is intended to handle install + initialize + launch in one step.
+
+### Manual fallback (if needed)
 
 1. Install prerequisites:
    - Node.js 20+
@@ -78,37 +141,12 @@ This keeps setup simple and supports the local-first goal (no external database)
 
 ```bash
 git clone <your-repo-url> LocalTickets
-cd LocalTickets
-```
-
-3. Install dependencies (from the app package directory):
-
-```bash
-cd app
+cd LocalTickets/localtickets/app
 npm install
-```
-
-4. Start development server:
-
-```bash
 npm run dev
 ```
 
-5. Open the URL shown in terminal (typically `http://localhost:5173`).
-
-6. Data files expected by the app live under:
-
-```txt
-../data/epics.json
-../data/stories.json
-```
-
-### Optional production-like run
-
-```bash
-npm run build
-npm run preview
-```
+3. Open the URL shown in terminal (typically `http://localhost:5173`).
 
 ## API Sketch (minimal)
 
