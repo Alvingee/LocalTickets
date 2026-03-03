@@ -14,6 +14,11 @@ const statusStyles = {
   done: 'status-done'
 };
 
+const statusOptions = columns.map((column) => ({
+  value: column.key,
+  label: column.title
+}));
+
 async function request(path, options = {}) {
   const response = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -188,12 +193,14 @@ export function App() {
                   </div>
                   <p>{item.notes || 'No notes'}</p>
                   <div className="row cardActions">
-                    <button
-                      className={`statusButton ${statusStyles[item.status] || ''}`}
-                      onClick={() => patchItem(item.id, { status: cycleStatus(item.status) })}
-                    >
-                      {columns.find((col) => col.key === item.status)?.title || 'Unknown'}
-                    </button>
+                    {item.kind === 'epic' && (
+                      <button
+                        className={`statusButton ${statusStyles[item.status] || ''}`}
+                        onClick={() => patchItem(item.id, { status: cycleStatus(item.status) })}
+                      >
+                        {columns.find((col) => col.key === item.status)?.title || 'Unknown'}
+                      </button>
+                    )}
                     {item.kind === 'epic' && (
                       <button onClick={() => createItem('story', item.id, item.status)}>+</button>
                     )}
@@ -232,12 +239,21 @@ export function App() {
                           </div>
                           <p>{child.notes || 'No notes'}</p>
                           <div className="row cardActions">
-                            <button
-                              className={`statusButton ${statusStyles[child.status] || ''}`}
-                              onClick={() => patchItem(child.id, { status: cycleStatus(child.status) })}
+                            <label className="srOnly" htmlFor={`status-${child.id}`}>
+                              Story status
+                            </label>
+                            <select
+                              id={`status-${child.id}`}
+                              className={`statusSelect ${statusStyles[child.status] || ''}`}
+                              value={child.status}
+                              onChange={(event) => patchItem(child.id, { status: event.target.value })}
                             >
-                              {columns.find((col) => col.key === child.status)?.title || 'Unknown'}
-                            </button>
+                              {statusOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </li>
                       ))}
