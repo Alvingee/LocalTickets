@@ -46,6 +46,10 @@ body {
   flex-wrap: wrap;
 }
 
+.cardHeader {
+  align-items: flex-start;
+}
+
 .between {
   justify-content: space-between;
 }
@@ -63,6 +67,51 @@ button {
 button {
   cursor: pointer;
   background: #eef2ff;
+}
+
+.iconButton {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.cardActions {
+  width: 100%;
+}
+
+.statusButton {
+  width: 100%;
+  font-weight: 600;
+}
+
+.status-todo {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #1f2937;
+}
+
+.status-inprogress {
+  background: #86efac;
+  border-color: #4ade80;
+  color: #14532d;
+}
+
+.status-abandoned {
+  background: #fca5a5;
+  border-color: #f87171;
+  color: #7f1d1d;
+}
+
+.status-done {
+  background: #bfdbfe;
+  border-color: #93c5fd;
+  color: #1e3a8a;
 }
 
 .list,
