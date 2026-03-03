@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const storyStatuses = ['todo', 'doing', 'done'];
+const columns = [
+  { key: 'todo', title: 'To do' },
+  { key: 'inprogress', title: 'In progress' },
+  { key: 'abandoned', title: 'Abandoned' },
+  { key: 'done', title: 'Done' }
+];
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
@@ -14,135 +19,229 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+function sortByOrder(a, b) {
+  return (a.order ?? 0) - (b.order ?? 0);
+}
+
 export function App() {
-  const [stories, setStories] = useState([]);
-  const [newStoryTitle, setNewStoryTitle] = useState('');
-  const [newStoryNotes, setNewStoryNotes] = useState('');
+  const [items, setItems] = useState([]);
   const [error, setError] = useState('');
 
-  async function loadStories() {
+  async function loadItems() {
     try {
       setError('');
       const data = await request('/api/stories');
-      setStories(data);
+      setItems(data);
     } catch (err) {
       setError(err.message);
     }
   }
 
   useEffect(() => {
-    loadStories();
+    loadItems();
   }, []);
 
-  async function createStory(event) {
-    event.preventDefault();
-    if (!newStoryTitle.trim()) {
+  async function createItem(kind, parentEpicId = null, status = 'todo') {
+    const title = window.prompt(kind === 'epic' ? 'Epic title' : 'Story title');
+    if (!title?.trim()) {
       return;
     }
+    const notes = window.prompt('Notes (optional)', '') ?? '';
     try {
       setError('');
       await request('/api/stories', {
         method: 'POST',
-        body: JSON.stringify({ title: newStoryTitle, notes: newStoryNotes })
+        body: JSON.stringify({ title: title.trim(), notes, kind, parentEpicId, status })
       });
-      setNewStoryTitle('');
-      setNewStoryNotes('');
-      await loadStories();
+      await loadItems();
     } catch (err) {
       setError(err.message);
     }
   }
 
-  async function patchStory(storyId, patch) {
+  async function patchItem(id, patch) {
     try {
       setError('');
-      await request(`/api/stories/${storyId}`, {
+      await request(`/api/stories/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(patch)
       });
-      await loadStories();
+      await loadItems();
     } catch (err) {
       setError(err.message);
     }
   }
 
-  const storiesByStatus = useMemo(() => {
-    return Object.fromEntries(
-      storyStatuses.map((status) => [
-        status,
-        stories
-          .filter((story) => story.status === status)
-          .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
-      ])
-    );
-  }, [stories]);
+  const byColumn = useMemo(() => {
+    const map = Object.fromEntries(columns.map((column) => [column.key, []]));
+    for (const item of items) {
+      if (map[item.status]) {
+        map[item.status].push(item);
+      }
+    }
+    for (const value of Object.values(map)) {
+      value.sort(sortByOrder);
+    }
+    return map;
+  }, [items]);
+
+  const allEpics = useMemo(() => items.filter((item) => item.kind === 'epic'), [items]);
+
+  function columnView(columnKey) {
+    const columnItems = byColumn[columnKey] || [];
+    const epics = columnItems.filter((item) => item.kind === 'epic');
+    const standalone = columnItems.filter((item) => item.kind !== 'epic' && !item.parentEpicId);
+
+    return [...epics, ...standalone];
+  }
+
+  function epicChildren(epicId, columnKey) {
+    return (byColumn[columnKey] || [])
+      .filter((item) => item.kind === 'story' && item.parentEpicId === epicId)
+      .sort(sortByOrder);
+  }
+
+  function onDragStart(event, item) {
+    event.dataTransfer.setData('text/plain', item.id);
+  }
+
+  async function onDrop(event, status, parentEpicId = null) {
+    event.preventDefault();
+    const id = event.dataTransfer.getData('text/plain');
+    if (!id) {
+      return;
+    }
+
+    const moved = items.find((item) => item.id === id);
+    if (!moved) {
+      return;
+    }
+
+    const patch = { status, parentEpicId };
+    if (moved.kind === 'epic') {
+      patch.parentEpicId = null;
+    }
+
+    await patchItem(id, patch);
+  }
 
   return (
     <div className="page">
       <header>
         <h1>LocalTickets</h1>
-        <p>A local Trello-style board backed by git-tracked JSON.</p>
+        <p>Column board with epics and stories.</p>
       </header>
 
       {error && <p className="error">{error}</p>}
 
-      <section className="panel addPanel">
-        <h2>Add Story</h2>
-        <form onSubmit={createStory} className="stack">
-          <input
-            value={newStoryTitle}
-            onChange={(event) => setNewStoryTitle(event.target.value)}
-            placeholder="What needs to get done?"
-            required
-          />
-          <textarea
-            value={newStoryNotes}
-            onChange={(event) => setNewStoryNotes(event.target.value)}
-            rows={2}
-            placeholder="Notes (optional)"
-          />
-          <button type="submit">Add Card</button>
-        </form>
+      <section className="toolbar panel">
+        <button onClick={() => createItem('story')}>Create Story</button>
+        <button onClick={() => createItem('epic')}>Create Epic</button>
       </section>
 
       <section className="board">
-        {storyStatuses.map((status) => (
-          <article key={status} className="column">
-            <h3>{status}</h3>
+        {columns.map((column) => (
+          <article
+            key={column.key}
+            className="column"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => onDrop(event, column.key)}
+          >
+            <h3>{column.title}</h3>
             <ul className="list">
-              {storiesByStatus[status].map((story) => (
-                <li key={story.id} className="card">
-                  <strong>{story.title}</strong>
-                  <p>{story.notes || 'No notes'}</p>
+              {columnView(column.key).map((item) => (
+                <li
+                  key={item.id}
+                  className={`card ${item.kind === 'epic' ? 'epic' : ''}`}
+                  draggable
+                  onDragStart={(event) => onDragStart(event, item)}
+                >
+                  <div className="row between">
+                    <strong>{item.title}</strong>
+                    <span className="badge">{item.kind}</span>
+                  </div>
+                  <p>{item.notes || 'No notes'}</p>
                   <div className="row">
                     <select
-                      value={story.status}
-                      onChange={(event) => patchStory(story.id, { status: event.target.value })}
+                      value={item.status}
+                      onChange={(event) => patchItem(item.id, { status: event.target.value })}
                     >
-                      {storyStatuses.map((nextStatus) => (
-                        <option key={nextStatus} value={nextStatus}>
-                          {nextStatus}
+                      {columns.map((nextColumn) => (
+                        <option key={nextColumn.key} value={nextColumn.key}>
+                          {nextColumn.title}
                         </option>
                       ))}
                     </select>
                     <button
                       onClick={() => {
-                        const notes = window.prompt('Story notes', story.notes || '');
+                        const notes = window.prompt('Edit notes', item.notes || '');
                         if (notes !== null) {
-                          patchStory(story.id, { notes });
+                          patchItem(item.id, { notes });
                         }
                       }}
                     >
                       Edit
                     </button>
+                    {item.kind === 'epic' && (
+                      <button onClick={() => createItem('story', item.id, item.status)}>+</button>
+                    )}
                   </div>
+
+                  {item.kind === 'epic' && (
+                    <ul
+                      className="childList"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => onDrop(event, item.status, item.id)}
+                    >
+                      {epicChildren(item.id, column.key).map((child) => (
+                        <li
+                          key={child.id}
+                          className="card child"
+                          draggable
+                          onDragStart={(event) => onDragStart(event, child)}
+                        >
+                          <div className="row between">
+                            <strong>{child.title}</strong>
+                            <span className="badge">story</span>
+                          </div>
+                          <p>{child.notes || 'No notes'}</p>
+                          <div className="row">
+                            <select
+                              value={child.status}
+                              onChange={(event) => patchItem(child.id, { status: event.target.value })}
+                            >
+                              {columns.map((nextColumn) => (
+                                <option key={nextColumn.key} value={nextColumn.key}>
+                                  {nextColumn.title}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                const notes = window.prompt('Edit notes', child.notes || '');
+                                if (notes !== null) {
+                                  patchItem(child.id, { notes });
+                                }
+                              }}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
-              {!storiesByStatus[status].length && <li className="muted">No cards.</li>}
+              {!columnView(column.key).length && <li className="muted">No tickets.</li>}
             </ul>
           </article>
         ))}
       </section>
+
+      {!!allEpics.length && (
+        <p className="muted help">Tip: Drag a story into an epic card area to nest it.</p>
+      )}
     </div>
   );
 }

@@ -8,6 +8,9 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.resolve(__dirname, '../data');
 const storiesFile = path.join(dataDir, 'stories.json');
 
+const validStatuses = ['todo', 'inprogress', 'abandoned', 'done'];
+const validKinds = ['story', 'epic'];
+
 async function ensureFile(filePath) {
   try {
     await fs.access(filePath);
@@ -32,18 +35,47 @@ async function writeJsonAtomic(filePath, data) {
 
 const now = () => new Date().toISOString();
 
+function normalizeStory(item, fallbackOrder = 0) {
+  return {
+    id: item.id ?? randomUUID(),
+    title: item.title ?? 'Untitled',
+    notes: item.notes ?? '',
+    status: validStatuses.includes(item.status) ? item.status : 'todo',
+    kind: validKinds.includes(item.kind) ? item.kind : 'story',
+    parentEpicId: item.parentEpicId ?? null,
+    order: Number.isFinite(item.order) ? item.order : fallbackOrder,
+    createdAt: item.createdAt ?? now(),
+    updatedAt: item.updatedAt ?? now()
+  };
+}
+
+async function readStories() {
+  const stories = await readJson(storiesFile);
+  const normalized = stories.map((story, index) => normalizeStory(story, index));
+
+  const changed = JSON.stringify(stories) !== JSON.stringify(normalized);
+  if (changed) {
+    await writeJsonAtomic(storiesFile, normalized);
+  }
+  return normalized;
+}
+
 export async function listStories() {
-  return readJson(storiesFile);
+  return readStories();
 }
 
 export async function createStory(input) {
-  const stories = await readJson(storiesFile);
+  const stories = await readStories();
   const timestamp = now();
+  const maxOrder = stories.reduce((max, story) => Math.max(max, story.order ?? 0), 0);
   const story = {
     id: randomUUID(),
     title: input.title,
     notes: input.notes ?? '',
-    status: input.status ?? 'todo',
+    status: validStatuses.includes(input.status) ? input.status : 'todo',
+    kind: validKinds.includes(input.kind) ? input.kind : 'story',
+    parentEpicId: input.parentEpicId ?? null,
+    order: maxOrder + 1,
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -53,20 +85,27 @@ export async function createStory(input) {
 }
 
 export async function updateStory(id, patch) {
-  const stories = await readJson(storiesFile);
+  const stories = await readStories();
   const index = stories.findIndex((story) => story.id === id);
   if (index === -1) {
     return null;
   }
+
   stories[index] = {
     ...stories[index],
     ...patch,
+    status: patch.status && validStatuses.includes(patch.status) ? patch.status : stories[index].status,
+    kind: patch.kind && validKinds.includes(patch.kind) ? patch.kind : stories[index].kind,
     updatedAt: now()
   };
+
   await writeJsonAtomic(storiesFile, stories);
   return stories[index];
 }
 
 export async function initializeDataFiles() {
   await ensureFile(storiesFile);
+  await readStories();
 }
+
+export { validKinds, validStatuses };
