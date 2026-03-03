@@ -7,6 +7,13 @@ const columns = [
   { key: 'done', title: 'Done' }
 ];
 
+const statusStyles = {
+  todo: 'status-todo',
+  inprogress: 'status-inprogress',
+  abandoned: 'status-abandoned',
+  done: 'status-done'
+};
+
 async function request(path, options = {}) {
   const response = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -105,6 +112,11 @@ export function App() {
     event.dataTransfer.setData('text/plain', item.id);
   }
 
+  function cycleStatus(current) {
+    const idx = columns.findIndex((column) => column.key === current);
+    return columns[(idx + 1) % columns.length]?.key || 'todo';
+  }
+
   async function onDrop(event, status, parentEpicId = null) {
     event.preventDefault();
     const id = event.dataTransfer.getData('text/plain');
@@ -156,31 +168,31 @@ export function App() {
                   draggable
                   onDragStart={(event) => onDragStart(event, item)}
                 >
-                  <div className="row between">
+                  <div className="row between cardHeader">
                     <strong>{item.title}</strong>
-                    <span className="badge">{item.kind}</span>
+                    <div className="row">
+                      <span className="badge">{item.kind}</span>
+                      <button
+                        className="iconButton"
+                        aria-label="Edit notes"
+                        onClick={() => {
+                          const notes = window.prompt('Edit notes', item.notes || '');
+                          if (notes !== null) {
+                            patchItem(item.id, { notes });
+                          }
+                        }}
+                      >
+                        ⚙
+                      </button>
+                    </div>
                   </div>
                   <p>{item.notes || 'No notes'}</p>
-                  <div className="row">
-                    <select
-                      value={item.status}
-                      onChange={(event) => patchItem(item.id, { status: event.target.value })}
-                    >
-                      {columns.map((nextColumn) => (
-                        <option key={nextColumn.key} value={nextColumn.key}>
-                          {nextColumn.title}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="row cardActions">
                     <button
-                      onClick={() => {
-                        const notes = window.prompt('Edit notes', item.notes || '');
-                        if (notes !== null) {
-                          patchItem(item.id, { notes });
-                        }
-                      }}
+                      className={`statusButton ${statusStyles[item.status] || ''}`}
+                      onClick={() => patchItem(item.id, { status: cycleStatus(item.status) })}
                     >
-                      Edit
+                      {columns.find((col) => col.key === item.status)?.title || 'Unknown'}
                     </button>
                     {item.kind === 'epic' && (
                       <button onClick={() => createItem('story', item.id, item.status)}>+</button>
@@ -200,31 +212,31 @@ export function App() {
                           draggable
                           onDragStart={(event) => onDragStart(event, child)}
                         >
-                          <div className="row between">
+                          <div className="row between cardHeader">
                             <strong>{child.title}</strong>
-                            <span className="badge">story</span>
+                            <div className="row">
+                              <span className="badge">story</span>
+                              <button
+                                className="iconButton"
+                                aria-label="Edit notes"
+                                onClick={() => {
+                                  const notes = window.prompt('Edit notes', child.notes || '');
+                                  if (notes !== null) {
+                                    patchItem(child.id, { notes });
+                                  }
+                                }}
+                              >
+                                ⚙
+                              </button>
+                            </div>
                           </div>
                           <p>{child.notes || 'No notes'}</p>
-                          <div className="row">
-                            <select
-                              value={child.status}
-                              onChange={(event) => patchItem(child.id, { status: event.target.value })}
-                            >
-                              {columns.map((nextColumn) => (
-                                <option key={nextColumn.key} value={nextColumn.key}>
-                                  {nextColumn.title}
-                                </option>
-                              ))}
-                            </select>
+                          <div className="row cardActions">
                             <button
-                              onClick={() => {
-                                const notes = window.prompt('Edit notes', child.notes || '');
-                                if (notes !== null) {
-                                  patchItem(child.id, { notes });
-                                }
-                              }}
+                              className={`statusButton ${statusStyles[child.status] || ''}`}
+                              onClick={() => patchItem(child.id, { status: cycleStatus(child.status) })}
                             >
-                              Edit
+                              {columns.find((col) => col.key === child.status)?.title || 'Unknown'}
                             </button>
                           </div>
                         </li>
