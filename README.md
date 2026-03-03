@@ -42,10 +42,12 @@ localtickets/
 ## Run Locally
 
 ```bash
-cd localtickets
-npm install
-npm run dev
+./setup-localtickets.sh
+./run-localtickets.sh
 ```
+
+`setup-localtickets.sh` is intended for one-time setup. It verifies Node.js/npm, creates data files, and installs dependencies.
+`run-localtickets.sh` launches the app for daily use.
 
 ## API (MVP)
 
