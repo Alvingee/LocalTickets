@@ -8,8 +8,7 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.resolve(__dirname, '../data');
 const storiesFile = path.join(dataDir, 'stories.json');
 
-const validStatuses = ['todo', 'inprogress', 'abandoned', 'done'];
-const validKinds = ['story', 'epic'];
+const validStatuses = ['todo', 'doing', 'done'];
 
 async function ensureFile(filePath) {
   try {
@@ -35,14 +34,24 @@ async function writeJsonAtomic(filePath, data) {
 
 const now = () => new Date().toISOString();
 
+function normalizeStatus(status) {
+  if (status === 'inprogress') {
+    return 'doing';
+  }
+
+  if (status === 'abandoned') {
+    return 'todo';
+  }
+
+  return validStatuses.includes(status) ? status : 'todo';
+}
+
 function normalizeStory(item, fallbackOrder = 0) {
   return {
     id: item.id ?? randomUUID(),
     title: item.title ?? 'Untitled',
     notes: item.notes ?? '',
-    status: validStatuses.includes(item.status) ? item.status : 'todo',
-    kind: validKinds.includes(item.kind) ? item.kind : 'story',
-    parentEpicId: item.parentEpicId ?? null,
+    status: normalizeStatus(item.status),
     order: Number.isFinite(item.order) ? item.order : fallbackOrder,
     createdAt: item.createdAt ?? now(),
     updatedAt: item.updatedAt ?? now()
@@ -53,10 +62,10 @@ async function readStories() {
   const stories = await readJson(storiesFile);
   const normalized = stories.map((story, index) => normalizeStory(story, index));
 
-  const changed = JSON.stringify(stories) !== JSON.stringify(normalized);
-  if (changed) {
+  if (JSON.stringify(stories) !== JSON.stringify(normalized)) {
     await writeJsonAtomic(storiesFile, normalized);
   }
+
   return normalized;
 }
 
@@ -72,13 +81,12 @@ export async function createStory(input) {
     id: randomUUID(),
     title: input.title,
     notes: input.notes ?? '',
-    status: validStatuses.includes(input.status) ? input.status : 'todo',
-    kind: validKinds.includes(input.kind) ? input.kind : 'story',
-    parentEpicId: input.parentEpicId ?? null,
+    status: normalizeStatus(input.status),
     order: maxOrder + 1,
     createdAt: timestamp,
     updatedAt: timestamp
   };
+
   stories.push(story);
   await writeJsonAtomic(storiesFile, stories);
   return story;
@@ -87,6 +95,7 @@ export async function createStory(input) {
 export async function updateStory(id, patch) {
   const stories = await readStories();
   const index = stories.findIndex((story) => story.id === id);
+
   if (index === -1) {
     return null;
   }
@@ -94,8 +103,7 @@ export async function updateStory(id, patch) {
   stories[index] = {
     ...stories[index],
     ...patch,
-    status: patch.status && validStatuses.includes(patch.status) ? patch.status : stories[index].status,
-    kind: patch.kind && validKinds.includes(patch.kind) ? patch.kind : stories[index].kind,
+    status: patch.status ? normalizeStatus(patch.status) : stories[index].status,
     updatedAt: now()
   };
 
@@ -108,4 +116,4 @@ export async function initializeDataFiles() {
   await readStories();
 }
 
-export { validKinds, validStatuses };
+export { validStatuses };

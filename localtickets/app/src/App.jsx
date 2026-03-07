@@ -2,273 +2,308 @@ import { useEffect, useMemo, useState } from 'react';
 
 const columns = [
   { key: 'todo', title: 'To do' },
-  { key: 'inprogress', title: 'In progress' },
-  { key: 'abandoned', title: 'Abandoned' },
+  { key: 'doing', title: 'Doing' },
   { key: 'done', title: 'Done' }
 ];
 
-const statusStyles = {
-  todo: 'status-todo',
-  inprogress: 'status-inprogress',
-  abandoned: 'status-abandoned',
-  done: 'status-done'
-};
+const statusLabels = Object.fromEntries(columns.map((column) => [column.key, column.title]));
 
-const statusOptions = columns.map((column) => ({
-  value: column.key,
-  label: column.title
-}));
+const emptyStoryForm = {
+  title: '',
+  notes: '',
+  status: 'todo'
+};
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
     ...options
   });
+
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.error ?? `Request failed (${response.status})`);
   }
+
   return response.json();
 }
 
-function sortByOrder(a, b) {
-  return (a.order ?? 0) - (b.order ?? 0);
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function sortStories(a, b) {
+  if ((a.order ?? 0) !== (b.order ?? 0)) {
+    return (a.order ?? 0) - (b.order ?? 0);
+  }
+
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
 export function App() {
-  const [items, setItems] = useState([]);
+  const [stories, setStories] = useState([]);
+  const [storyForm, setStoryForm] = useState(emptyStoryForm);
+  const [editingId, setEditingId] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadItems() {
+  const editingStory = stories.find((story) => story.id === editingId) ?? null;
+
+  async function loadStories() {
     try {
       setError('');
       const data = await request('/api/stories');
-      setItems(data);
+      setStories(data);
     } catch (err) {
       setError(err.message);
     }
   }
 
   useEffect(() => {
-    loadItems();
+    loadStories();
   }, []);
 
-  async function createItem(kind, parentEpicId = null, status = 'todo') {
-    const title = window.prompt(kind === 'epic' ? 'Epic title' : 'Story title');
-    if (!title?.trim()) {
+  async function submitStory(event) {
+    event.preventDefault();
+
+    if (!storyForm.title.trim() || busy) {
       return;
     }
-    const notes = window.prompt('Notes (optional)', '') ?? '';
+
+    setBusy(true);
+
     try {
       setError('');
-      await request('/api/stories', {
+      const created = await request('/api/stories', {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim(), notes, kind, parentEpicId, status })
+        body: JSON.stringify({
+          title: storyForm.title.trim(),
+          notes: storyForm.notes.trim(),
+          status: storyForm.status
+        })
       });
-      await loadItems();
+
+      setStories((prev) => [...prev, created]);
+      setStoryForm(emptyStoryForm);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function patchItem(id, patch) {
+  async function patchStory(id, patch) {
+    setBusy(true);
+
     try {
       setError('');
-      await request(`/api/stories/${id}`, {
+      const updated = await request(`/api/stories/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(patch)
       });
-      await loadItems();
+
+      setStories((prev) => prev.map((story) => (story.id === id ? updated : story)));
     } catch (err) {
       setError(err.message);
+      throw err;
+    } finally {
+      setBusy(false);
     }
   }
 
-  const byColumn = useMemo(() => {
-    const map = Object.fromEntries(columns.map((column) => [column.key, []]));
-    for (const item of items) {
-      if (map[item.status]) {
-        map[item.status].push(item);
+  const storiesByStatus = useMemo(() => {
+    const grouped = Object.fromEntries(columns.map((column) => [column.key, []]));
+
+    for (const story of stories) {
+      if (grouped[story.status]) {
+        grouped[story.status].push(story);
       }
     }
-    for (const value of Object.values(map)) {
-      value.sort(sortByOrder);
+
+    for (const list of Object.values(grouped)) {
+      list.sort(sortStories);
     }
-    return map;
-  }, [items]);
 
-  const allEpics = useMemo(() => items.filter((item) => item.kind === 'epic'), [items]);
+    return grouped;
+  }, [stories]);
 
-  function columnView(columnKey) {
-    const columnItems = byColumn[columnKey] || [];
-    const epics = columnItems.filter((item) => item.kind === 'epic');
-    const standalone = columnItems.filter((item) => item.kind !== 'epic' && !item.parentEpicId);
-
-    return [...epics, ...standalone];
+  function onDragStart(event, id) {
+    event.dataTransfer.setData('text/plain', id);
+    event.dataTransfer.effectAllowed = 'move';
   }
 
-  function epicChildren(epicId, columnKey) {
-    return (byColumn[columnKey] || [])
-      .filter((item) => item.kind === 'story' && item.parentEpicId === epicId)
-      .sort(sortByOrder);
-  }
-
-  function onDragStart(event, item) {
-    event.dataTransfer.setData('text/plain', item.id);
-  }
-
-  function cycleStatus(current) {
-    const idx = columns.findIndex((column) => column.key === current);
-    return columns[(idx + 1) % columns.length]?.key || 'todo';
-  }
-
-  async function onDrop(event, status, parentEpicId = null) {
+  async function onDrop(event, status) {
     event.preventDefault();
     const id = event.dataTransfer.getData('text/plain');
-    if (!id) {
+    const story = stories.find((item) => item.id === id);
+
+    if (!story || story.status === status || busy) {
       return;
     }
 
-    const moved = items.find((item) => item.id === id);
-    if (!moved) {
+    await patchStory(id, { status });
+  }
+
+  async function moveOneStepRight(story) {
+    const idx = columns.findIndex((column) => column.key === story.status);
+    const next = columns[Math.min(columns.length - 1, idx + 1)]?.key;
+
+    if (!next || next === story.status || busy) {
       return;
     }
 
-    const patch = { status, parentEpicId };
-    if (moved.kind === 'epic') {
-      patch.parentEpicId = null;
-    }
-
-    await patchItem(id, patch);
+    await patchStory(story.id, { status: next });
   }
 
   return (
     <div className="page">
-      <header>
-        <h1>LocalTickets</h1>
-        <p>Column board with epics and stories.</p>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Local-first kanban</p>
+          <h1>LocalTickets</h1>
+          <p className="subtitle">A fast local board for tracking stories without the clutter.</p>
+        </div>
       </header>
+
+      <section className="composer panel">
+        <h2>Add a story</h2>
+        <form onSubmit={submitStory} className="composerForm">
+          <input
+            type="text"
+            value={storyForm.title}
+            onChange={(event) => setStoryForm((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder="What needs to be done?"
+            maxLength={120}
+            required
+          />
+          <textarea
+            value={storyForm.notes}
+            onChange={(event) => setStoryForm((prev) => ({ ...prev, notes: event.target.value }))}
+            placeholder="Optional notes"
+            rows={2}
+          />
+          <div className="row">
+            <select
+              value={storyForm.status}
+              onChange={(event) => setStoryForm((prev) => ({ ...prev, status: event.target.value }))}
+            >
+              {columns.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.title}
+                </option>
+              ))}
+            </select>
+            <button type="submit" disabled={!storyForm.title.trim() || busy}>
+              {busy ? 'Saving…' : 'Create story'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       {error && <p className="error">{error}</p>}
 
-      <section className="toolbar panel">
-        <button onClick={() => createItem('story')}>Create Story</button>
-        <button onClick={() => createItem('epic')}>Create Epic</button>
-      </section>
-
-      <section className="board">
+      <section className="board" aria-label="Story board">
         {columns.map((column) => (
           <article
             key={column.key}
-            className="column"
+            className="column panel"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => onDrop(event, column.key)}
           >
-            <h3>{column.title}</h3>
+            <header className="columnHeader">
+              <h3>{column.title}</h3>
+              <span>{storiesByStatus[column.key].length}</span>
+            </header>
+
             <ul className="list">
-              {columnView(column.key).map((item) => (
+              {storiesByStatus[column.key].map((story) => (
                 <li
-                  key={item.id}
-                  className={`card ${item.kind === 'epic' ? 'epic' : ''}`}
-                  draggable
-                  onDragStart={(event) => onDragStart(event, item)}
+                  key={story.id}
+                  className="card"
+                  draggable={!busy}
+                  onDragStart={(event) => onDragStart(event, story.id)}
                 >
-                  <div className="row between cardHeader">
-                    <strong>{item.title}</strong>
-                    <div className="row">
-                      <span className="badge">{item.kind}</span>
-                      <button
-                        className="iconButton"
-                        aria-label="Edit notes"
-                        onClick={() => {
-                          const notes = window.prompt('Edit notes', item.notes || '');
-                          if (notes !== null) {
-                            patchItem(item.id, { notes });
-                          }
-                        }}
-                      >
-                        ⚙
-                      </button>
-                    </div>
-                  </div>
-                  <p>{item.notes || 'No notes'}</p>
-                  <div className="row cardActions">
-                    {item.kind === 'epic' && (
-                      <button
-                        className={`statusButton ${statusStyles[item.status] || ''}`}
-                        onClick={() => patchItem(item.id, { status: cycleStatus(item.status) })}
-                      >
-                        {columns.find((col) => col.key === item.status)?.title || 'Unknown'}
-                      </button>
-                    )}
-                    {item.kind === 'epic' && (
-                      <button onClick={() => createItem('story', item.id, item.status)}>+</button>
-                    )}
+                  <div className="row between">
+                    <strong>{story.title}</strong>
+                    <span className={`status status-${story.status}`}>{statusLabels[story.status]}</span>
                   </div>
 
-                  {item.kind === 'epic' && (
-                    <ul
-                      className="childList"
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => onDrop(event, item.status, item.id)}
-                    >
-                      {epicChildren(item.id, column.key).map((child) => (
-                        <li
-                          key={child.id}
-                          className="card child"
-                          draggable
-                          onDragStart={(event) => onDragStart(event, child)}
-                        >
-                          <div className="row between cardHeader">
-                            <strong>{child.title}</strong>
-                            <div className="row">
-                              <span className="badge">story</span>
-                              <button
-                                className="iconButton"
-                                aria-label="Edit notes"
-                                onClick={() => {
-                                  const notes = window.prompt('Edit notes', child.notes || '');
-                                  if (notes !== null) {
-                                    patchItem(child.id, { notes });
-                                  }
-                                }}
-                              >
-                                ⚙
-                              </button>
-                            </div>
-                          </div>
-                          <p>{child.notes || 'No notes'}</p>
-                          <div className="row cardActions">
-                            <label className="srOnly" htmlFor={`status-${child.id}`}>
-                              Story status
-                            </label>
-                            <select
-                              id={`status-${child.id}`}
-                              className={`statusSelect ${statusStyles[child.status] || ''}`}
-                              value={child.status}
-                              onChange={(event) => patchItem(child.id, { status: event.target.value })}
-                            >
-                              {statusOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  <p className="notes">{story.notes || 'No notes yet.'}</p>
+
+                  <footer className="cardFooter">
+                    <small>Updated {formatDate(story.updatedAt)}</small>
+                    <div className="row">
+                      <button type="button" onClick={() => setEditingId(story.id)} disabled={busy}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveOneStepRight(story)}
+                        disabled={busy || story.status === 'done'}
+                      >
+                        Next column →
+                      </button>
+                    </div>
+                  </footer>
                 </li>
               ))}
-              {!columnView(column.key).length && <li className="muted">No tickets.</li>}
+
+              {!storiesByStatus[column.key].length && <li className="muted">Drop a story here.</li>}
             </ul>
           </article>
         ))}
       </section>
 
-      {!!allEpics.length && (
-        <p className="muted help">Tip: Drag a story into an epic card area to nest it.</p>
+      {editingStory && (
+        <dialog className="modal" open>
+          <form
+            className="modalCard"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              const title = `${formData.get('title') ?? ''}`.trim();
+
+              if (!title) {
+                return;
+              }
+
+              await patchStory(editingStory.id, {
+                title,
+                notes: `${formData.get('notes') ?? ''}`.trim(),
+                status: `${formData.get('status') ?? 'todo'}`
+              });
+
+              setEditingId(null);
+            }}
+          >
+            <h2>Edit story</h2>
+            <input name="title" defaultValue={editingStory.title} maxLength={120} required />
+            <textarea name="notes" defaultValue={editingStory.notes} rows={4} />
+            <select name="status" defaultValue={editingStory.status}>
+              {columns.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.title}
+                </option>
+              ))}
+            </select>
+            <div className="row modalActions">
+              <button type="button" onClick={() => setEditingId(null)}>
+                Cancel
+              </button>
+              <button type="submit">Save changes</button>
+            </div>
+          </form>
+        </dialog>
       )}
     </div>
   );
