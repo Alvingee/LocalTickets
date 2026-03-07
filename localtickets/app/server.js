@@ -1,12 +1,5 @@
 import express from 'express';
-import {
-  createStory,
-  initializeDataFiles,
-  listStories,
-  updateStory,
-  validKinds,
-  validStatuses
-} from './storage.js';
+import { createStory, initializeDataFiles, listStories, updateStory, validStatuses } from './storage.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,13 +21,12 @@ app.get('/api/stories', async (_, res, next) => {
 
 app.post('/api/stories', async (req, res, next) => {
   try {
-    const { title, notes, status, kind, parentEpicId } = req.body;
+    const { title, notes, status } = req.body;
+
     if (!title?.trim()) {
       return res.status(400).json({ error: 'Title is required.' });
     }
-    if (kind && !validKinds.includes(kind)) {
-      return res.status(400).json({ error: 'Invalid type.' });
-    }
+
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status.' });
     }
@@ -42,10 +34,9 @@ app.post('/api/stories', async (req, res, next) => {
     const story = await createStory({
       title: title.trim(),
       notes,
-      status,
-      kind,
-      parentEpicId: parentEpicId ?? null
+      status
     });
+
     return res.status(201).json(story);
   } catch (error) {
     return next(error);
@@ -54,7 +45,7 @@ app.post('/api/stories', async (req, res, next) => {
 
 app.patch('/api/stories/:id', async (req, res, next) => {
   try {
-    const allowed = ['title', 'notes', 'status', 'parentEpicId', 'order'];
+    const allowed = ['title', 'notes', 'status', 'order'];
     const patch = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowed.includes(key))
     );
@@ -62,17 +53,21 @@ app.patch('/api/stories/:id', async (req, res, next) => {
     if (patch.title !== undefined && !patch.title.trim()) {
       return res.status(400).json({ error: 'Title cannot be empty.' });
     }
+
     if (patch.title) {
       patch.title = patch.title.trim();
     }
+
     if (patch.status && !validStatuses.includes(patch.status)) {
       return res.status(400).json({ error: 'Invalid status.' });
     }
 
     const story = await updateStory(req.params.id, patch);
+
     if (!story) {
       return res.status(404).json({ error: 'Story not found.' });
     }
+
     return res.json(story);
   } catch (error) {
     return next(error);
